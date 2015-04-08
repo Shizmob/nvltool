@@ -101,7 +101,7 @@ NVLArchive.save(file=None, recreate=False)
 
 License
 -------
-nvltool is licensed under the WTFPL. See the LICENSE file for moer details.
+nvltool is licensed under the WTFPL. See the LICENSE file for more details.
 
 Disclaimer
 ----------
