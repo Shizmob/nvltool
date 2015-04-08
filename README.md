@@ -64,11 +64,11 @@ API
 A small API overview:
 
 ```
-NVLArchive(filename=None, key=None)
-  Create an archive instance. If filename is not None, it will be passed to open(). If key is None, it will be generated from the default NVList key.
+NVLArchive(file=None, key=None)
+  Create an archive instance. If file is not None, it will be passed to open(). If key is None, it will be generated from the default NVList key.
 
-NVLArchive.open(filename)
-  Open archive from given filename. Will raise a zipfile.BadZipFile exception if the underlying zip archive is not valid.
+NVLArchive.open(file)
+  Open archive. File can either be a filename or a file-like object. Will raise a zipfile.BadZipFile exception if the underlying zip archive is not valid.
 
 NVLArchive.close()
   Close the archive. Will raise a ValueError if no archive is currently open. Any modifications will NOT be saved unless you call NVLArchive.save() beforehand.
@@ -92,10 +92,10 @@ NVLArchive.write(path, contents)
 NVLArchive.remove(path)
   Remove the given file from the archive. Will raise a FileNotFoundError if the file is not present in the archive.
 
-NVLArchive.save(filename=None)
-  Save any made modifications. If filename is given, the new archive will be saved to that file instead.
-  Will raise a ValueError if no filename was given and no archive was opened through open().
-  If no archive was opened before, after saving the archive will open the given filename.
+NVLArchive.save(file=None)
+  Save any made modifications. If file is given, the new archive will be saved to that file instead.
+  Will raise a ValueError if no file was given and no archive was opened through open().
+  If no archive was opened before, after saving the archive will open the given file.
 ```
 
 License

@@ -57,30 +57,30 @@ class NVLArchive:
         '.avi', '.mpg', '.mpeg', '.mp4', '.mov', '.ogv', '.wmv', '.mkv', '.webm', '.flv'
     ]
 
-    def __init__(self, filename=None, key=None):
+    def __init__(self, file=None, key=None):
         self.key = key
         if not self.key:
             self.key = self.generate_default_key()
 
         self.reset()
-        if filename:
-            self.open(filename)
+        if file:
+            self.open(file)
 
     def reset(self):
-        self.filename = None
+        self.file = None
         self.handle = None
         self.files = set()
         self.folders = set()
         self.new = {}
         self.removed = set()
 
-    def open(self, filename):
+    def open(self, file):
         """ Open archive. """
         if self.is_open():
             self.close()
 
-        self.handle = zipfile.ZipFile(filename, 'r', allowZip64=True)
-        self.filename = filename
+        self.handle = zipfile.ZipFile(file, 'r', allowZip64=True)
+        self.file = file
         self.files = self.handle.namelist()
 
         # Strip out silly 0-byte folder items NVList adds.
@@ -152,11 +152,11 @@ class NVLArchive:
             raise FileNotFoundError('{} does not exist in the archive.'.format(path))
 
 
-    def save(self, filename=None):
+    def save(self, file=None):
         """ Save made changes to the already opened archive, or to another archive. """
-        if not self.filename and not filename:
+        if not self.file and not file:
             raise ValueError('No filename specified.')
-        filename = filename or self.filename
+        file = file or self.file
 
         # Collect all files.
         new = self.new.copy()
@@ -167,9 +167,9 @@ class NVLArchive:
         folders = self.folders
 
         # Open new file and write files.
-        if self.filename == filename:
+        if self.file == file:
             self.close()
-        with zipfile.ZipFile(filename, 'w', allowZip64=True) as handle:
+        with zipfile.ZipFile(file, 'w', allowZip64=True) as handle:
             for folder in sorted(folders):
                 handle.writestr(folder + '/', b'')
 
@@ -182,8 +182,8 @@ class NVLArchive:
                 handle.writestr(path, self.crypt(path, contents), compress_type=compression)
 
         # Reset internal state, if needed.
-        if not self.filename or self.filename == filename:
-            self.open(filename)
+        if not self.file or self.file == file:
+            self.open(file)
 
 
     def crypt(self, path, contents):
