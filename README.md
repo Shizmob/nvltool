@@ -6,7 +6,7 @@ This is a simple tool that allows you to create, modify and extract obfuscated [
 Usage
 -----
 ```
-usage: nvltool (-l | -x | -c | -a | -d) [-k KEY] [-o OUTFILE] [-v] [-h] [-V]
+usage: nvltool (-l | -x | -c | -a | -d) [-k KEY] [-o OUT] [-v] [-h] [-V]
                ARCHIVE [FILE [FILE ...]]
 
 A tool for working with NVList archive files.
@@ -17,8 +17,7 @@ positional arguments:
 
 optional arguments:
   -k KEY, --key KEY     The obfuscation key to use, in hexadecimal.
-  -o OUTFILE, --outfile OUTFILE
-                        The archive file to output to when appending or
+  -o OUT, --out OUT     The archive file to output to when appending or
                         deleting, or output directory when extracting.
   -v, --verbose         Show more information about what is going on.
 

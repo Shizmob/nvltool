@@ -221,8 +221,8 @@ if __name__ == '__main__':
     actions.add_argument('-a', '--append', action='store_true', help='Add files to archive.')
     actions.add_argument('-d', '--delete', action='store_true', help='Delete files from archive.')
 
-    parser.add_argument('-k', '--key', metavar='KEY', help='The obfuscation key to use, in hexadecimal.')
-    parser.add_argument('-o', '--outfile', help='The archive file to output to when appending or deleting, or output directory when extracting.')
+    parser.add_argument('-k', '--key', help='The obfuscation key to use, in hexadecimal.')
+    parser.add_argument('-o', '--out', help='The archive file to output to when appending or deleting, or output directory when extracting.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Show more information about what is going on.')
 
     misc = parser.add_argument_group('misc')
@@ -245,13 +245,13 @@ if __name__ == '__main__':
     # In/out selection.
     if arguments.list or arguments.extract:
         infile = arguments.archive
-        outfile = arguments.outfile or ''
+        outfile = arguments.out or ''
     elif arguments.create:
         infile = None
         outfile = arguments.archive
     elif arguments.append or arguments.delete:
         infile = arguments.archive
-        outfile = arguments.outfile or arguments.archive
+        outfile = arguments.out or arguments.archive
 
     # File normalization.
     files = []
