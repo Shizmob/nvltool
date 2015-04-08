@@ -117,6 +117,7 @@ class NVLArchive:
 
     def read(self, path):
         """" Read the contents of the given file and return the bytes. """
+        path = path.strip('/')
         if not self.has(path):
             raise FileNotFoundError('{} does not exist in the archive.'.format(path))
 
@@ -128,17 +129,19 @@ class NVLArchive:
 
     def write(self, path, contents):
         """ Write a new file as bytes to the archive. """
+        base = path.strip('/')
         self.new[path] = contents
         self.removed.discard(path)
 
         # Add 0-byte folder items that NVList wants.
-        base = path.strip('/')
         while '/' in base:
             base, _ = base.rsplit('/', 1)
             self.folders.add(base)
 
     def remove(self, path):
         """ Delete file from the archive. """
+        path = path.strip('/')
+
         removed = False
         if path in self.new:
             del self.new[path]
