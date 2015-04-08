@@ -72,6 +72,7 @@ class NVLArchive:
         self.files = set()
         self.folders = set()
         self.new = {}
+        self.new_folders = set()
         self.removed = set()
 
     def open(self, file):
@@ -136,7 +137,7 @@ class NVLArchive:
         # Add 0-byte folder items that NVList wants.
         while '/' in base:
             base, _ = base.rsplit('/', 1)
-            self.folders.add(base)
+            self.new_folders.add(base)
 
     def remove(self, path):
         """ Delete file from the archive. """
@@ -161,18 +162,25 @@ class NVLArchive:
             raise ValueError('No file specified.')
         file = file or self.file
 
-        # Collect all files.
-        new = self.new.copy()
-        if self.is_open():
-            for path in self.files:
-                if path not in self.removed and path not in new:
-                    new[path] = self.read(path)
-        folders = self.folders
+        # If no files have been removed, open in append mode.
+        # Else, collect all current files, truncate the zip file and write everything from scratch.
+        if self.removed:
+            new = self.new.copy()
+            if self.is_open():
+                for path in self.files:
+                    if path not in self.removed and path not in new:
+                        new[path] = self.read(path)
+            folders = self.folders | self.new_folders
+            mode = 'w'
+        else:
+            new = self.new
+            folders = self.new_folders - self.folders
+            mode = 'a'
 
         # Open new file and write files.
         if self.file == file:
             self.close()
-        with zipfile.ZipFile(file, 'w', allowZip64=True) as handle:
+        with zipfile.ZipFile(file, mode, allowZip64=True) as handle:
             for folder in sorted(folders):
                 handle.writestr(folder + '/', b'')
 
