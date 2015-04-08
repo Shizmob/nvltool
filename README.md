@@ -92,8 +92,9 @@ NVLArchive.write(path, contents)
 NVLArchive.remove(path)
   Remove the given file from the archive. Will raise a FileNotFoundError if the file is not present in the archive.
 
-NVLArchive.save(file=None)
+NVLArchive.save(file=None, recreate=False)
   Save any made modifications. If file is given, the new archive will be saved to that file instead.
+  If recreate is True, the entire archive will be recreated from scratch instead of an efficient append operation.
   Will raise a ValueError if no file was given and no archive was opened through open().
   If no archive was opened before, after saving the archive will open the given file.
 ```

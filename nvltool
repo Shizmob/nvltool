@@ -156,15 +156,15 @@ class NVLArchive:
             raise FileNotFoundError('{} does not exist in the archive.'.format(path))
 
 
-    def save(self, file=None):
+    def save(self, file=None, recreate=False):
         """ Save made changes to the already opened archive, or to another archive. """
         if not self.file and not file:
             raise ValueError('No file specified.')
         file = file or self.file
 
-        # If no files have been removed, open in append mode.
+        # If no files have been removed and not forced to, open in append mode.
         # Else, collect all current files, truncate the zip file and write everything from scratch.
-        if self.removed:
+        if self.removed or recreate:
             new = self.new.copy()
             if self.is_open():
                 for path in self.files:
