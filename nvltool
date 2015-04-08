@@ -103,7 +103,7 @@ class NVLArchive:
 
     def is_open(self):
         """ Return whether the archive is open to a file or not. """
-        return self.filename and self.handle
+        return self.file and self.handle
 
 
     def list(self):
@@ -158,7 +158,7 @@ class NVLArchive:
     def save(self, file=None):
         """ Save made changes to the already opened archive, or to another archive. """
         if not self.file and not file:
-            raise ValueError('No filename specified.')
+            raise ValueError('No file specified.')
         file = file or self.file
 
         # Collect all files.
