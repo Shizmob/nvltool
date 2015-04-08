@@ -49,13 +49,13 @@ class NVLArchive:
     """ NVL archive. """
     DEFAULT_KEY_SIZE = 4096
     DEFAULT_KEY_SEED = -559038737
-    COMPRESSED_EXTENSIONS = [
-        '.ktx', '.ttf'
-    ]
-    UNENCRYPTED_EXTENSIONS = [
-        '.wav', '.ogg', '.oga',  '.mp3', '.m4a', '.aac', '.wma', '.mka',
-        '.avi', '.mpg', '.mpeg', '.mp4', '.mov', '.ogv', '.wmv', '.mkv', '.webm', '.flv'
-    ]
+    COMPRESSED_EXTENSIONS = {
+        'ktx', 'ttf'
+    }
+    UNENCRYPTED_EXTENSIONS = {
+        'wav', 'ogg', 'oga',  'mp3', 'm4a', 'aac', 'wma', 'mka',
+        'avi', 'mpg', 'mpeg', 'mp4', 'mov', 'ogv', 'wmv', 'mkv', 'webm', 'flv'
+    }
 
     def __init__(self, file=None, key=None):
         self.key = key
@@ -185,7 +185,7 @@ class NVLArchive:
                 handle.writestr(folder + '/', b'')
 
             for path, contents in new.items():
-                if any(path.endswith(ext) for ext in self.COMPRESSED_EXTENSIONS):
+                if path.rsplit('.', 1)[-1] in self.COMPRESSED_EXTENSIONS:
                     compression = zipfile.ZIP_DEFLATED
                 else:
                     compression = zipfile.ZIP_STORED
@@ -200,7 +200,7 @@ class NVLArchive:
     def crypt(self, path, contents):
         """ .nvl obfuscation function: a simple key-shortest XOR function. """
         # Some files are not supposed to be {en,de}crypted.
-        if any(path.endswith(ext) for ext in self.UNENCRYPTED_EXTENSIONS):
+        if path.rsplit('.', 1)[-1] in self.UNENCRYPTED_EXTENSIONS:
             return contents
         return bytes((a ^ b) for (a, b) in zip(contents, itertools.chain(self.key, itertools.repeat(0))))
 
