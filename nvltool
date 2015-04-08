@@ -32,7 +32,6 @@ class LCG:
         """ Logical right shift (Java >>>), as opposed to Python's standard arithmetic right shift. """
         return (v % (1 << self.bits)) >> n
 
-
     def bytes(self, n):
         """ Generate n bytes of randomness. """
         res = bytearray()
@@ -113,7 +112,7 @@ class NVLArchive:
 
     def has(self, path):
         """ Check whether the archive contains the given file. """
-        return (path in self.files or path in self.new) and path not in self.removed
+        return (path in self.files and path not in self.removed) or path in self.new
 
 
     def read(self, path):
