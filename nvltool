@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+
+import time
+import math
+import zipfile
+import itertools
+__version__ = '0.6'
+
+
+class LCG:
+    """ Linear congruential generator. """
+
+    def __init__(self, seed=None, bits=48, multiplier=0x5DEECE66D, increment=0xB):
+        self.n = 0
+        self.bits = bits
+        self.multiplier = multiplier
+        self.increment = increment
+
+        seed = seed or round(time.time() * 1000)
+        self.seed(seed)
+
+    def seed(self, seed):
+        """ Seed the generator. """
+        self.n = (seed ^ self.multiplier) & ((1 << self.bits) - 1)
+
+    def next(self, n):
+        """ Generate n bits of randomness. """
+        self.n = (self.n * self.multiplier + self.increment) & ((1 << self.bits) - 1)
+        return self.lrshift(self.n, self.bits - n)
+
+    def lrshift(self, v, n):
+        """ Logical right shift (Java >>>), as opposed to Python's standard arithmetic right shift. """
+        return (v % (1 << self.bits)) >> n
+
+
+    def bytes(self, n):
+        """ Generate n bytes of randomness. """
+        res = bytearray()
+        for i in range(math.ceil(n / 4)):
+            r = self.next(32)
+            for _ in range(min(n - i * 4, 4)):
+                res.append(r & 0xFF)
+                r >>= 8
+
+        return bytes(res)
+
+
+class NVLArchive:
+    """ NVL archive. """
+    DEFAULT_KEY_SIZE = 4096
+    DEFAULT_KEY_SEED = -559038737
+    COMPRESSED_EXTENSIONS = [
+        '.ktx', '.ttf'
+    ]
+    UNENCRYPTED_EXTENSIONS = [
+        '.wav', '.ogg', '.oga',  '.mp3', '.m4a', '.aac', '.wma', '.mka',
+        '.avi', '.mpg', '.mpeg', '.mp4', '.mov', '.ogv', '.wmv', '.mkv', '.webm', '.flv'
+    ]
+
+    def __init__(self, filename=None, key=None):
+        self.key = key
+        if not self.key:
+            self.key = self.generate_default_key()
+
+        self.reset()
+        if filename:
+            self.open(filename)
+
+    def reset(self):
+        self.filename = None
+        self.handle = None
+        self.files = set()
+        self.folders = set()
+        self.new = {}
+        self.removed = set()
+
+    def open(self, filename):
+        """ Open archive. """
+        if self.is_open():
+            self.close()
+
+        self.handle = zipfile.ZipFile(filename, 'r', allowZip64=True)
+        self.filename = filename
+        self.files = self.handle.namelist()
+
+        # Strip out silly 0-byte folder items NVList adds.
+        for path in self.files:
+            path = path.strip('/')
+            if '/' in path:
+                base, _ = path.strip('/').rsplit('/', 1)
+                self.folders.add(base)
+
+        for path in self.files[:]:
+            if path.strip('/') in self.folders:
+                self.files.remove(path)
+
+    def close(self):
+        """ Close archive. Does not save changes. """
+        if not self.is_open():
+            raise ValueError('Archive is not open.')
+        self.handle.close()
+        self.reset()
+
+    def is_open(self):
+        """ Return whether the archive is open to a file or not. """
+        return self.filename and self.handle
+
+
+    def list(self):
+        """ Return a list of all files in the archive. """
+        return (frozenset(self.files) ^ self.removed) | set(self.new.keys())
+
+    def has(self, path):
+        """ Check whether the archive contains the given file. """
+        return (path in self.files or path in self.new) and path not in self.removed
+
+
+    def read(self, path):
+        """" Read the contents of the given file and return the bytes. """
+        if not self.has(path):
+            raise FileNotFoundError('{} does not exist in the archive.'.format(path))
+
+        if path in self.new:
+            return self.new[path]
+        if path in self.files:
+            contents = self.handle.read(path)
+            return self.crypt(path, contents)
+
+    def write(self, path, contents):
+        """ Write a new file as bytes to the archive. """
+        self.new[path] = contents
+        self.removed.discard(path)
+
+        # Add 0-byte folder items that NVList wants.
+        base = path.strip('/')
+        while '/' in base:
+            base, _ = base.rsplit('/', 1)
+            self.folders.add(base)
+
+    def remove(self, path):
+        """ Delete file from the archive. """
+        removed = False
+        if path in self.new:
+            del self.new[path]
+            removed = True
+
+        if path in self.files and path not in self.removed:
+            self.removed.add(path)
+            removed = True
+
+        if not removed:
+            raise FileNotFoundError('{} does not exist in the archive.'.format(path))
+
+
+    def save(self, filename=None):
+        """ Save made changes to the already opened archive, or to another archive. """
+        if not self.filename and not filename:
+            raise ValueError('No filename specified.')
+        filename = filename or self.filename
+
+        # Collect all files.
+        new = self.new.copy()
+        if self.is_open():
+            for path in self.files:
+                if path not in self.removed and path not in new:
+                    new[path] = self.read(path)
+        folders = self.folders
+
+        # Open new file and write files.
+        if self.filename == filename:
+            self.close()
+        with zipfile.ZipFile(filename, 'w', allowZip64=True) as handle:
+            for folder in sorted(folders):
+                handle.writestr(folder + '/', b'')
+
+            for path, contents in new.items():
+                if any(path.endswith(ext) for ext in self.COMPRESSED_EXTENSIONS):
+                    compression = zipfile.ZIP_DEFLATED
+                else:
+                    compression = zipfile.ZIP_STORED
+
+                handle.writestr(path, self.crypt(path, contents), compress_type=compression)
+
+        # Reset internal state, if needed.
+        if not self.filename or self.filename == filename:
+            self.open(filename)
+
+
+    def crypt(self, path, contents):
+        """ .nvl obfuscation function: a simple key-shortest XOR function. """
+        # Some files are not supposed to be {en,de}crypted.
+        if any(path.endswith(ext) for ext in self.UNENCRYPTED_EXTENSIONS):
+            return contents
+        return bytes((a ^ b) for (a, b) in zip(contents, itertools.chain(self.key, itertools.repeat(0))))
+
+    def generate_default_key(self):
+        """ The default key generated by NVList: 4096 bytes of LCG48-11-25214903917 output. """
+        r = LCG(self.DEFAULT_KEY_SEED)
+        return r.bytes(self.DEFAULT_KEY_SIZE)
+
+
+if __name__ == '__main__':
+    import os
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='A tool for working with NVList archive files.',
+        epilog='The FILE argument can optionally be in ARCHIVE=REAL format, mapping a file in the archive file system to a file on your real file system. ' +
+               'For example: nvltool -x test.nvl img.png=/home/foo/sexy.png',
+        add_help=False)
+
+    parser.add_argument('archive', metavar='ARCHIVE', help='The NVList archive file to operate on.')
+    parser.add_argument('files', metavar='FILE', nargs='*', help='The files to operate on.')
+
+    action_group = parser.add_argument_group('actions')
+    actions = action_group.add_mutually_exclusive_group(required=True)
+    actions.add_argument('-l', '--list', action='store_true', help='List files in archive.')
+    actions.add_argument('-x', '--extract', action='store_true', help='Extract files from archive.')
+    actions.add_argument('-c', '--create', action='store_true', help='Create archive from files.')
+    actions.add_argument('-a', '--append', action='store_true', help='Add files to archive.')
+    actions.add_argument('-d', '--delete', action='store_true', help='Delete files from archive.')
+
+    parser.add_argument('-k', '--key', metavar='KEY', help='The obfuscation key to use, in hexadecimal.')
+    parser.add_argument('-o', '--outfile', help='The archive file to output to when appending or deleting, or output directory when extracting.')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Show more information about what is going on.')
+
+    misc = parser.add_argument_group('misc')
+    misc.add_argument('-h', '--help', action='help', help='Print this help and exit.')
+    misc.add_argument('-V', '--version', action='version', version='nvltool v{}'.format(__version__), help='Show version information and exit.')
+
+    arguments = parser.parse_args()
+
+
+    def verbose(msg, *args, **kwargs):
+        if arguments.verbose:
+            print(msg.format(*args, **kwargs), file=sys.stderr)
+
+    if arguments.key:
+        key = bytes(int(n, 16) for n in arguments.key[::2])
+    else:
+        key = None
+
+
+    # In/out selection.
+    if arguments.list or arguments.extract:
+        infile = arguments.archive
+        outfile = arguments.outfile or ''
+    elif arguments.create:
+        infile = None
+        outfile = arguments.archive
+    elif arguments.append or arguments.delete:
+        infile = arguments.archive
+        outfile = arguments.outfile or arguments.archive
+
+    # File normalization.
+    files = []
+    for path in arguments.files:
+        if '=' in path:
+            files.append(tuple(path.split('=', 1)))
+        else:
+            files.append((path, path))
+
+    # Input.
+    if infile:
+        verbose('Opening archive {}...', infile)
+    try:
+        archive = NVLArchive(infile, key=key)
+    except Exception as e:
+        print('Could not open archive file {}: {}'.format(infile, e), file=sys.stderr)
+        sys.exit(1)
+
+
+    # Main course.
+    success = True
+
+    if arguments.create or arguments.append:
+        # Recursive file addition function.
+        def add_file(fspath, archpath):
+            if os.path.isdir(fspath):
+                # Add all files from a directory.
+                for path in os.listdir(fspath):
+                    add_file(os.path.join(fspath, path), archpath + '/' + path)
+            else:
+                # Add a single file.
+                try:
+                    with open(fspath, 'rb') as f:
+                        contents = f.read()
+                        archive.write(archpath, contents)
+                        verbose('Added file {} to archive as {} (size = {} bytes)', fspath, archpath, len(contents))
+                except Exception as e:
+                    print('Could not add file {} to archive: {}'.format(fspath, e), file=sys.stderr)
+                    global success
+                    success = False
+
+        for archpath, fspath in files:
+            archpath = archpath.strip('/')
+            add_file(fspath, archpath)
+    elif arguments.delete:
+        # Delete all given files, simple.
+        for path, _ in files:
+            path = path.strip('/')
+            try:
+                archive.remove(path)
+                verbose('Removed file {} from archive.', path)
+            except:
+                print('Could not remove file {} from archive: {}'.format(path, e), file=sys.stderr)
+                success = False
+    elif arguments.extract:
+        # Extract files.
+        if not files:
+            files = [ (path, path) for path in archive.list() ]
+
+        for archpath, fspath in files:
+            archpath = archpath.strip('/')
+            try:
+                out = os.path.join(outfile, fspath)
+                outdir = os.path.dirname(out)
+                verbose('Extracting archive file {} to {}...', archpath, out)
+
+                contents = archive.read(archpath)
+                if not os.path.exists(outdir):
+                    os.makedirs(outdir)
+
+                with open(out, 'wb') as f:
+                    f.write(contents)
+            except Exception as e:
+                print('Could not extract file {} from archive: {}'.format(fspath, e), file=sys.stderr)
+                success = False
+    elif arguments.list:
+        # Lst all files.
+        files = sorted(archive.list())
+        for path in files:
+            print(path)
+
+
+    # Output.
+    if arguments.create or arguments.append or arguments.delete:
+        verbose('Saving archive {}...', outfile or infile)
+        try:
+            archive.save(outfile)
+        except Exception as e:
+            print('Could not save archive {}: {}'.format(outfile or infile, e), file=sys.stderr)
+            success = False
+
+    # Return.
+    if not success:
+        sys.exit(1)
+    else:
+        sys.exit(0)
