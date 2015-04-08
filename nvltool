@@ -214,7 +214,7 @@ if __name__ == '__main__':
         add_help=False)
 
     parser.add_argument('archive', metavar='ARCHIVE', help='The NVList archive file to operate on.')
-    parser.add_argument('files', metavar='FILE', nargs='*', help='The files to operate on.')
+    parser.add_argument('files', metavar='FILE', default=[], nargs='*', help='The files to operate on.')
 
     action_group = parser.add_argument_group('actions')
     actions = action_group.add_mutually_exclusive_group(required=True)
