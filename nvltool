@@ -130,14 +130,15 @@ class NVLArchive:
 
     def write(self, path, contents):
         """ Write a new file as bytes to the archive. """
-        base = path.strip('/')
+        path = path.strip('/')
+        if self.has(path):
+            self.remove(path)
         self.new[path] = contents
-        self.removed.discard(path)
 
         # Add 0-byte folder items that NVList wants.
-        while '/' in base:
-            base, _ = base.rsplit('/', 1)
-            self.new_folders.add(base)
+        while '/' in path:
+            path, _ = path.rsplit('/', 1)
+            self.new_folders.add(path)
 
     def remove(self, path):
         """ Delete file from the archive. """
